@@ -1,0 +1,13 @@
+{
+	"title": "Bug Fix Workflow",
+	"description": "A methodical approach to identifying, fixing, and verifying bugs.",
+	"tasks": [
+		"Reproduce the bug with a failing test case",
+		"Trace the root cause in the source code",
+		"Implement the fix",
+		"Verify the fix with the reproduction test",
+		"Run full regression suite",
+		"Clean up debug logs/comments",
+		"Document the fix in PR/Changelog"
+	]
+}

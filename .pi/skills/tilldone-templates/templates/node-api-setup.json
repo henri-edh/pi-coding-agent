@@ -1,0 +1,13 @@
+{
+  "title": "Node.js Express + TS API",
+  "description": "Secure and scalable Express API boilerplate.",
+  "tasks": [
+    "Initialize package.json and TypeScript (tsconfig.json)",
+    "Install Express and @types/express",
+    "Set up src/index.ts with basic server",
+    "Configure Dotenv for environment variables",
+    "Install and configure Morgan/Winston for logging",
+    "Set up Zod for request validation",
+    "Implement basic health check endpoint"
+  ]
+}

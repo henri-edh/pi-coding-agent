@@ -15,15 +15,15 @@
  * - Footer:  persistent task list with live progress + list title
  * - Widget:  prominent "current task" display (the inprogress task)
  * - Status:  compact summary in the status line
- * - /tilldone:  interactive overlay with full task details
+ * - /tilldone:  interactive overlay with full task details and management
  *
  * Usage: pi -e extensions/tilldone.ts
  */
 
 import { StringEnum } from "@mariozechner/pi-ai";
-import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, Theme, TUI } from "@mariozechner/pi-coding-agent";
 import { DynamicBorder } from "@mariozechner/pi-coding-agent";
-import { Container, matchesKey, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { Container, Key, matchesKey, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { applyExtensionDefaults } from "./themeMap.ts";
 
@@ -60,29 +60,93 @@ const STATUS_ICON: Record<TaskStatus, string> = { idle: "○", inprogress: "●"
 const NEXT_STATUS: Record<TaskStatus, TaskStatus> = { idle: "inprogress", inprogress: "done", done: "idle" };
 const STATUS_LABEL: Record<TaskStatus, string> = { idle: "idle", inprogress: "in progress", done: "done" };
 
-// ── /tilldone overlay component ────────────────────────────────────────
+// ── Interactive Component ──────────────────────────────────────────────
 
 class TillDoneListComponent {
-	private tasks: Task[];
-	private title: string | undefined;
-	private desc: string | undefined;
-	private theme: Theme;
-	private onClose: () => void;
+	private selectedIndex = 0;
 	private cachedWidth?: number;
 	private cachedLines?: string[];
 
-	constructor(tasks: Task[], title: string | undefined, desc: string | undefined, theme: Theme, onClose: () => void) {
-		this.tasks = tasks;
-		this.title = title;
-		this.desc = desc;
-		this.theme = theme;
-		this.onClose = onClose;
-	}
+	constructor(
+		private tasks: Task[],
+		private title: string | undefined,
+		private desc: string | undefined,
+		private theme: Theme,
+		private tui: TUI,
+		private ctx: ExtensionContext,
+		private onUpdate: (data: { tasks: Task[]; title?: string; desc?: string; nextId?: number }) => void,
+		private onClose: () => void,
+	) {}
 
-	handleInput(data: string): void {
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+	async handleInput(data: string): Promise<void> {
+		const task = this.tasks[this.selectedIndex];
+
+		if (matchesKey(data, Key.up) || matchesKey(data, "k")) {
+			this.selectedIndex = Math.max(0, this.selectedIndex - 1);
+		} else if (matchesKey(data, Key.down) || matchesKey(data, "j")) {
+			this.selectedIndex = Math.min(this.tasks.length - 1, this.selectedIndex + 1);
+		} else if (matchesKey(data, Key.space) || matchesKey(data, Key.enter)) {
+			if (task) {
+				const prev = task.status;
+				task.status = NEXT_STATUS[task.status];
+				if (task.status === "inprogress") {
+					for (const t of this.tasks) {
+						if (t.id !== task.id && t.status === "inprogress") t.status = "idle";
+					}
+				}
+				this.onUpdate({ tasks: this.tasks });
+			}
+		} else if (matchesKey(data, "a")) {
+			const text = await this.ctx.ui.input("Add Task", "Enter task description:");
+			if (text) {
+				const nextId = Math.max(0, ...this.tasks.map((t) => t.id)) + 1;
+				this.tasks.push({ id: nextId, text, status: "idle" });
+				this.onUpdate({ tasks: this.tasks, nextId: nextId + 1 });
+			}
+		} else if (matchesKey(data, "d")) {
+			if (task) {
+				const confirmed = await this.ctx.ui.confirm("Delete Task", `Delete task #${task.id}: "${task.text}"?`);
+				if (confirmed) {
+					this.tasks.splice(this.selectedIndex, 1);
+					this.selectedIndex = Math.min(this.selectedIndex, this.tasks.length - 1);
+					this.onUpdate({ tasks: this.tasks });
+				}
+			}
+		} else if (matchesKey(data, "e")) {
+			if (task) {
+				const text = await this.ctx.ui.input("Edit Task", "Update task description:", task.text);
+				if (text) {
+					task.text = text;
+					this.onUpdate({ tasks: this.tasks });
+				}
+			}
+		} else if (matchesKey(data, "t")) {
+			const title = await this.ctx.ui.input("List Title", "Enter new list title:", this.title);
+			if (title !== undefined) {
+				this.title = title || undefined;
+				this.onUpdate({ tasks: this.tasks, title: this.title });
+			}
+		} else if (matchesKey(data, "D")) {
+			const desc = await this.ctx.ui.input("List Description", "Enter new list description:", this.desc);
+			if (desc !== undefined) {
+				this.desc = desc || undefined;
+				this.onUpdate({ tasks: this.tasks, desc: this.desc });
+			}
+		} else if (matchesKey(data, "c")) {
+			if (this.tasks.length > 0) {
+				const confirmed = await this.ctx.ui.confirm("Clear List", "Remove all tasks?");
+				if (confirmed) {
+					this.tasks = [];
+					this.selectedIndex = 0;
+					this.onUpdate({ tasks: this.tasks });
+				}
+			}
+		} else if (matchesKey(data, "escape") || matchesKey(data, "q") || matchesKey(data, "ctrl+c")) {
 			this.onClose();
 		}
+
+		this.invalidate();
+		this.tui.requestRender();
 	}
 
 	render(width: number): string[] {
@@ -92,10 +156,9 @@ class TillDoneListComponent {
 		const th = this.theme;
 
 		lines.push("");
-		const heading = this.title
-			? th.fg("accent", ` ${this.title} `)
-			: th.fg("accent", " TillDone ");
-		const headingLen = this.title ? this.title.length + 2 : 10;
+		const headingText = this.title ? ` ${this.title} ` : " TillDone ";
+		const heading = th.fg("accent", headingText);
+		const headingLen = headingText.length;
 		lines.push(truncateToWidth(
 			th.fg("borderMuted", "─".repeat(3)) + heading +
 			th.fg("borderMuted", "─".repeat(Math.max(0, width - 3 - headingLen))),
@@ -108,7 +171,7 @@ class TillDoneListComponent {
 		lines.push("");
 
 		if (this.tasks.length === 0) {
-			lines.push(truncateToWidth(`  ${th.fg("dim", "No tasks yet. Ask the agent to add some!")}`, width));
+			lines.push(truncateToWidth(`  ${th.fg("dim", "No tasks yet. Press 'a' to add one.")}`, width));
 		} else {
 			const done = this.tasks.filter((t) => t.status === "done").length;
 			const active = this.tasks.filter((t) => t.status === "inprogress").length;
@@ -123,24 +186,39 @@ class TillDoneListComponent {
 			));
 			lines.push("");
 
-			for (const task of this.tasks) {
+			this.tasks.forEach((task, i) => {
+				const isSelected = i === this.selectedIndex;
 				const icon = task.status === "done"
 					? th.fg("success", STATUS_ICON.done)
 					: task.status === "inprogress"
 						? th.fg("accent", STATUS_ICON.inprogress)
 						: th.fg("dim", STATUS_ICON.idle);
+				
 				const id = th.fg("accent", `#${task.id}`);
-				const text = task.status === "done"
+				let text = task.status === "done"
 					? th.fg("dim", task.text)
 					: task.status === "inprogress"
 						? th.fg("success", task.text)
 						: th.fg("muted", task.text);
-				lines.push(truncateToWidth(`  ${icon} ${id} ${text}`, width));
-			}
+
+				if (isSelected) {
+					text = th.bg("selection", th.fg("white", task.text));
+				}
+
+				const pointer = isSelected ? th.fg("accent", "❯ ") : "  ";
+				lines.push(truncateToWidth(` ${pointer}${icon} ${id} ${text}`, width));
+			});
 		}
 
 		lines.push("");
-		lines.push(truncateToWidth(`  ${th.fg("dim", "Press Escape to close")}`, width));
+		lines.push(truncateToWidth(
+			`  ${th.fg("dim", "[↑/↓/j/k] Navigate  [Space] Toggle  [a] Add  [d] Delete  [e] Edit")}`,
+			width,
+		));
+		lines.push(truncateToWidth(
+			`  ${th.fg("dim", "[t] Title  [D] Desc  [c] Clear  [q/Esc] Close")}`,
+			width,
+		));
 		lines.push("");
 
 		this.cachedWidth = width;
@@ -385,6 +463,49 @@ export default function (pi: ExtensionAPI) {
 	pi.on("input", async () => {
 		nudgedThisCycle = false;
 		return { action: "continue" as const };
+	});
+
+	// ── Global Keybindings ─────────────────────────────────────────────
+
+	const openOverlay = async (ctx: ExtensionContext) => {
+		if (!ctx.hasUI) return;
+		await ctx.ui.custom<void>((tui, theme, _kb, done) => {
+			return new TillDoneListComponent(
+				tasks,
+				listTitle,
+				listDescription,
+				theme,
+				tui,
+				ctx,
+				(data) => {
+					if (data.tasks) tasks = data.tasks;
+					if (data.title !== undefined) listTitle = data.title;
+					if (data.desc !== undefined) listDescription = data.desc;
+					if (data.nextId !== undefined) nextId = data.nextId;
+					refreshUI(ctx);
+				},
+				() => done(),
+			);
+		}, { overlay: true, overlayOptions: { anchor: "center", width: "80%", height: "80%" } });
+	};
+
+	pi.registerShortcut("ctrl+b", {
+		description: "Open TillDone overlay",
+		handler: openOverlay,
+	});
+
+	pi.registerShortcut("f2", {
+		description: "Toggle current task as done",
+		handler: async (ctx) => {
+			const current = tasks.find((t) => t.status === "inprogress");
+			if (!current) {
+				ctx.ui.notify("No task currently in progress", "warning");
+				return;
+			}
+			current.status = "done";
+			ctx.ui.notify(`Task #${current.id} marked as done`, "success");
+			refreshUI(ctx);
+		},
 	});
 
 	// ── Register tilldone tool ─────────────────────────────────────────
@@ -711,16 +832,7 @@ export default function (pi: ExtensionAPI) {
 	// ── /tilldone command ──────────────────────────────────────────────
 
 	pi.registerCommand("tilldone", {
-		description: "Show all TillDone tasks on the current branch",
-		handler: async (_args, ctx) => {
-			if (!ctx.hasUI) {
-				ctx.ui.notify("/tilldone requires interactive mode", "error");
-				return;
-			}
-
-			await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
-				return new TillDoneListComponent(tasks, listTitle, listDescription, theme, () => done());
-			});
-		},
+		description: "Show and manage TillDone tasks",
+		handler: (_args, ctx) => openOverlay(ctx),
 	});
 }

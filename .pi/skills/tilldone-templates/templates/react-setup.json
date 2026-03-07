@@ -1,0 +1,13 @@
+{
+  "title": "React + Vite + Tailwind Setup",
+  "description": "Standard modern React development environment configuration.",
+  "tasks": [
+    "Initialize project with Vite (React + TS)",
+    "Install Tailwind CSS and PostCSS",
+    "Configure tailwind.config.ts and index.css",
+    "Install and configure Prettier + ESLint",
+    "Set up basic directory structure (src/components, src/hooks, src/pages)",
+    "Add Lucide-React for icons",
+    "Initialize Git repository"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+	"title": "Node.js Endpoint Setup",
+	"description": "Steps to implement a new REST/GraphQL endpoint.",
+	"tasks": [
+		"Define API schema (Zod/TypeBox)",
+		"Register route in Express/Fastify",
+		"Implement controller logic",
+		"Implement database service layer",
+		"Add validation middleware",
+		"Add error handling cases",
+		"Test endpoint with curl/Postman/Insomnia",
+		"Write integration tests"
+	]
+}

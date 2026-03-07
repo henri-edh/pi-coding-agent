@@ -1,0 +1,13 @@
+{
+	"title": "React Component Implementation",
+	"description": "A standardized workflow for building and testing a new React component.",
+	"tasks": [
+		"Define component interface (Props)",
+		"Scaffold component file with basic structure",
+		"Implement styling (CSS/Tailwind/Styled)",
+		"Implement component logic and state",
+		"Write unit tests (Vitest/Jest)",
+		"Verify rendering in host application",
+		"Documentation/PropTypes/ReadMe"
+	]
+}
