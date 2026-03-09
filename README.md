@@ -265,3 +265,33 @@ Side-by-side comparison of lifecycle hooks in [Claude Code](https://docs.anthrop
 Learn tactical agentic coding patterns with [Tactical Agentic Coding](https://agenticengineer.com/tactical-agentic-coding?y=pivscc)
 
 Follow the [IndyDevDan YouTube channel](https://www.youtube.com/@indydevdan) to improve your agentic coding advantage.
+
+
+extensions/sql-explorer.ts
+
+ 4 tools for database exploration:
+
+ ┌────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │ Tool           │ Description                                                                                                                           │
+ ├────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ sql_connect    │ Connect to SQLite (file path) or PostgreSQL (connection string). Auto-disconnects previous connection. Masks passwords in PG display. │
+ ├────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ sql_schema     │ List all tables, or describe a specific table's columns (name, type, nullable, primary key)                                           │
+ ├────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ sql_query      │ Execute any SQL — SELECT returns formatted tables, DML returns affected row counts. Output is truncated for large results.            │
+ ├────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ sql_disconnect │ Close the active connection. Also auto-closes on session shutdown.                                                                    │
+ └────────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+ Key design choices:
+ - Single active connection — keeps things simple, connecting to a new DB auto-disconnects the old one
+ - SQLite uses bun:sqlite (zero deps), PostgreSQL uses the pg package (just installed)
+ - Output truncation via pi's built-in truncateHead for large result sets
+ - Custom rendering — tool calls show SQL previews, results show command + row count + formatted table
+ - Prompt guidelines guide the LLM to check schema before querying
+ - Graceful cleanup on session shutdown
+
+ Run it with:
+
+ ```bash
+   pi -e extensions/sql-explorer.ts

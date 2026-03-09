@@ -65,6 +65,14 @@ ext-agent-chain:
 ext-pi-pi:
     pi -e extensions/pi-pi.ts -e extensions/theme-cycler.ts
 
+# 15. Agent Forge: evolutionary tooling — forge new tools at runtime
+ext-agent-forge:
+    pi -e extensions/agent-forge.ts -e extensions/theme-cycler.ts
+
+# 15b. Agent Forge + Agent Team: Engineer agent forges tools for the team
+ext-forge-team:
+    pi -e extensions/agent-team.ts -e extensions/agent-forge.ts -e extensions/theme-cycler.ts
+
 #ext
 
 # 15. Session Replay: scrollable timeline overlay of session history (legit)

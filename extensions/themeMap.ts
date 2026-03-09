@@ -22,6 +22,7 @@ import { fileURLToPath } from "url";
 //
 export const THEME_MAP: Record<string, string> = {
 	"agent-chain":        "midnight-ocean",   // deep sequential pipeline
+	"agent-forge":        "cyberpunk",        // meta-programming, tool evolution
 	"agent-team":         "dracula",          // rich orchestration palette
 	"cross-agent":        "ocean-breeze",     // cross-boundary, connecting
 	"damage-control":     "gruvbox",          // grounded, earthy safety
